@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser'
 import { FORMATI_NATIVI, suggerimentiZxing } from '../codici'
+import { apriFotocamera, fotocameraDisponibile, messaggioFotocamera } from '../fotocamera'
 
 // Lettura dal vivo con la fotocamera posteriore (SPEC 5.5, modalità 2):
 // fotocamera principale (non ultra-grandangolo), zoom iniziale 2x se supportato,
@@ -40,28 +41,6 @@ async function creaRilevatoreNativo(): Promise<RilevatoreNativo | null> {
   }
 }
 
-function messaggioFotocamera(err: unknown): string {
-  const nome = (err as { name?: string }).name
-  if (nome === 'NotAllowedError') {
-    return 'Permesso per la fotocamera negato. Consentilo nelle impostazioni del browser, oppure usa "Scatta una foto del codice".'
-  }
-  if (nome === 'NotFoundError' || nome === 'OverconstrainedError') return 'Fotocamera non trovata.'
-  return 'Impossibile avviare la fotocamera.'
-}
-
-// Fotocamera posteriore principale: si scartano ultra-grandangolo, grandangolo, tele, macro.
-// I nomi sono disponibili solo dopo il permesso.
-async function fotocameraPrincipale(): Promise<string | null> {
-  const video = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput')
-  if (!video.length || video.some((d) => !d.label)) return null
-  const posteriori = video.filter((d) => /back|rear|environment|posterior|trasera|arrière/i.test(d.label))
-  const candidate = posteriori.length ? posteriori : video
-  const principali = candidate.filter((d) => !/ultra|wide|grandangol|tele|macro|depth|dual|triple/i.test(d.label))
-  const elenco = principali.length ? principali : candidate
-  // Android: la principale è di norma la prima ("camera2 0, facing back")
-  return [...elenco].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))[0].deviceId
-}
-
 export default function ScannerDalVivo({ onLetto, onChiudi }: Props) {
   const contenitore = useRef<HTMLDivElement>(null)
   const traccia = useRef<MediaStreamTrack | null>(null)
@@ -74,7 +53,7 @@ export default function ScannerDalVivo({ onLetto, onChiudi }: Props) {
   avvisaLetto.current = onLetto
 
   useEffect(() => {
-    if (!window.isSecureContext || !navigator.mediaDevices) {
+    if (!fotocameraDisponibile()) {
       setErrore("La fotocamera dal vivo funziona solo se l'app è aperta con un indirizzo https://")
       return
     }
@@ -106,34 +85,12 @@ export default function ScannerDalVivo({ onLetto, onChiudi }: Props) {
       avvisaLetto.current(testo)
     }
 
-    async function apri(deviceId: string | null) {
-      return navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: 'environment' } }),
-        },
-      })
-    }
-
     async function avvia() {
       try {
-        // se il permesso c'è già si conosce subito la principale; altrimenti si apre
-        // la posteriore e, avuto il permesso, si passa alla principale se è un'altra
-        let scelta = await fotocameraPrincipale().catch(() => null)
-        flusso = await apri(scelta)
+        flusso = await apriFotocamera(1920, 1080)
         if (chiuso) return ferma()
-        if (!scelta) {
-          scelta = await fotocameraPrincipale().catch(() => null)
-          const attuale = flusso.getVideoTracks()[0].getSettings().deviceId
-          if (scelta && scelta !== attuale) {
-            flusso.getTracks().forEach((t) => t.stop())
-            flusso = await apri(scelta)
-            if (chiuso) return ferma()
-          }
-        }
       } catch (err) {
-        if (!chiuso) setErrore(messaggioFotocamera(err))
+        if (!chiuso) setErrore(messaggioFotocamera(err, ', oppure usa "Scatta una foto del codice"'))
         return
       }
 

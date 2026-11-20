@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { preparaFoto } from '../foto'
+import { fotocameraDisponibile } from '../fotocamera'
 import type { FileDaCaricare } from '../supabase'
 import Icona from './Icone'
+
+const ScattaFoto = lazy(() => import('./ScattaFoto'))
 
 // Foto e vocali di una nota (SPEC 5.4 punti 8-9 e 5.6).
 // Usato sia nella nuova nota (file ancora sul telefono) sia nel dettaglio (file già caricati).
@@ -39,6 +42,7 @@ export default function Allegati({ voci, onAggiungi, onRimuovi, attesa }: Props)
   const [errore, setErrore] = useState<string | null>(null)
   const [preparazione, setPreparazione] = useState(false)
   const [ingrandita, setIngrandita] = useState<string | null>(null)
+  const [fotocamera, setFotocamera] = useState(false)
 
   const foto = voci.filter((v) => v.tipo === 'foto')
   const vocali = voci.filter((v) => v.tipo === 'vocale')
@@ -52,7 +56,7 @@ export default function Allegati({ voci, onAggiungi, onRimuovi, attesa }: Props)
   // se si esce dalla schermata durante una registrazione, il microfono si spegne
   useEffect(() => () => registratore.current?.stream.getTracks().forEach((t) => t.stop()), [])
 
-  async function fotoScelte(file: FileList | null) {
+  async function fotoScelte(file: FileList | Blob[] | null) {
     if (!file?.length) return
     setErrore(null)
     setPreparazione(true)
@@ -60,7 +64,7 @@ export default function Allegati({ voci, onAggiungi, onRimuovi, attesa }: Props)
       const pronte: FileDaCaricare[] = []
       for (const f of Array.from(file)) {
         const { foto, miniatura } = await preparaFoto(f)
-        pronte.push({ tipo: 'foto', file: foto, miniatura, nome: f.name || 'foto.jpg' })
+        pronte.push({ tipo: 'foto', file: foto, miniatura, nome: (f as File).name || 'foto.jpg' })
       }
       await onAggiungi(pronte)
     } catch (err) {
@@ -152,7 +156,7 @@ export default function Allegati({ voci, onAggiungi, onRimuovi, attesa }: Props)
       <div className="campo">
         <span className="etichetta">Foto</span>
         <div className="pulsanti-allegati">
-          <button type="button" className="pulsante" onClick={() => scatta.current?.click()} disabled={occupato}>
+          <button type="button" className="pulsante" onClick={() => (fotocameraDisponibile() ? setFotocamera(true) : scatta.current?.click())} disabled={occupato}>
             <Icona nome="fotocamera" /> Scatta
           </button>
           <button type="button" className="pulsante" onClick={() => galleria.current?.click()} disabled={occupato}>
@@ -188,6 +192,12 @@ export default function Allegati({ voci, onAggiungi, onRimuovi, attesa }: Props)
 
       {(preparazione || attesa) && <p className="nota-modulo caricamento">{preparazione ? 'Preparazione foto…' : attesa}</p>}
       {errore && <p className="errore">{errore}</p>}
+
+      {fotocamera && (
+        <Suspense fallback={<div className="scanner" />}>
+          <ScattaFoto onScattata={(b) => fotoScelte([b])} onChiudi={() => setFotocamera(false)} />
+        </Suspense>
+      )}
 
       {ingrandita && (
         <div className="velo visore" onClick={() => setIngrandita(null)}>

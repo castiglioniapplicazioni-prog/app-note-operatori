@@ -59,8 +59,8 @@ export default function DettaglioNota({ notaId, io, liste, onChiudi, onCambiata,
   if (nota === undefined || nota === null) {
     return (
       <div className="foglio">
-        <div className="foglio-testata">
-          <button className="link" onClick={onChiudi}>Indietro</button>
+        <div className="foglio-testata con-indietro">
+          <PulsanteIndietro onClick={onChiudi} />
           <h2>Nota</h2>
         </div>
         <div className="foglio-corpo">
@@ -130,8 +130,8 @@ export default function DettaglioNota({ notaId, io, liste, onChiudi, onCambiata,
 
   return (
     <div className="foglio">
-      <div className="foglio-testata">
-        <button className="link" onClick={onChiudi}>Indietro</button>
+      <div className="foglio-testata con-indietro">
+        <PulsanteIndietro onClick={onChiudi} />
         <h2>{n.codice}</h2>
       </div>
       <div className="foglio-corpo dettaglio-nota">
@@ -389,3 +389,11 @@ function ModificaNota({
   )
 }
 
+
+function PulsanteIndietro({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="pulsante-indietro" onClick={onClick}>
+      <Icona nome="indietro" dimensione={20} /> Indietro
+    </button>
+  )
+}

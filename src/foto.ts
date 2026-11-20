@@ -9,7 +9,15 @@ async function ridimensiona(foto: ImageBitmap, lato: number, qualita: number): P
   canvas.height = Math.round(foto.height * scala)
   canvas.getContext('2d')!.drawImage(foto, 0, 0, canvas.width, canvas.height)
   return new Promise((ok, ko) =>
-    canvas.toBlob((b) => (b ? ok(b) : ko(new Error('Foto non leggibile'))), 'image/jpeg', qualita),
+    canvas.toBlob(
+      (b) => {
+        canvas.width = canvas.height = 0 // libera subito la memoria (importante sui telefoni)
+        if (b) ok(b)
+        else ko(new Error('Foto troppo grande per la memoria del telefono. Riprova o usa una foto più piccola.'))
+      },
+      'image/jpeg',
+      qualita,
+    ),
   )
 }
 

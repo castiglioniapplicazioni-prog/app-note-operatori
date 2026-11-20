@@ -749,3 +749,36 @@ textarea { font: inherit; }
 @media (min-width: 900px) {
   .schede-basso button { max-width: 160px; font-size: 13px; }
 }
+
+/* ---------- Fotocamera per le foto delle note ---------- */
+.otturatore {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 5px solid #fff;
+  background: rgb(255 255 255 / 0.35);
+  margin-bottom: 16px;
+  padding: 0;
+}
+.otturatore:active { background: #fff; }
+.lampo { position: absolute; inset: 0; background: #fff; opacity: 0.6; pointer-events: none; }
+
+/* ---------- Tasto Indietro ben visibile (dettaglio nota) ---------- */
+.foglio-testata.con-indietro { grid-template-columns: auto 1fr; gap: 12px; }
+.foglio-testata.con-indietro h2 { text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pulsante-indietro {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 0 14px 0 8px;
+  border: none;
+  border-radius: 22px;
+  background: var(--primario);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+.pulsante-indietro:active { filter: brightness(0.9); }
