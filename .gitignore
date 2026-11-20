@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.local
+.DS_Store
+*.log
+*.tsbuildinfo
+
+# password del database Supabase (solo su questo Mac)
+.password-database.txt
+
+# dati reali dei colleghi (email): restano solo su questo Mac, il repository è pubblico
+supabase/seed.sql
+supabase/002_seed.sql

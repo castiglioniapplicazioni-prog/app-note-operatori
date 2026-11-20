@@ -1,0 +1,17 @@
+# Impostazioni del progetto Supabase gestite da qui ("supabase config push").
+# Solo le voci scritte qui vengono applicate; tutto il resto resta come nella dashboard.
+project_id = "app_note"
+
+[db.seed]
+sql_paths = ["./seed.sql"]
+
+[auth]
+# niente registrazioni libere: gli operatori li crea l'admin, la password la crea la Edge Function primo_accesso
+enable_signup = false
+enable_anonymous_sign_ins = false
+minimum_password_length = 6
+
+[auth.email]
+enabled = true
+# l'email è fittizia (<telefono>@operatori.local): nessuna conferma via email
+enable_confirmations = false
