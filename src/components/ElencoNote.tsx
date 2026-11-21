@@ -65,6 +65,7 @@ function CardNota({ nota, liste, onApri }: { nota: Nota; liste: Liste; onApri: (
     <button className="scheda card-nota" onClick={onApri}>
       <div className="card-alto">
         <span className="card-data">{dataBreve(nota.data)}</span>
+        {nota.presa_in_carico && !nota.chiusa && <span className="stato stato-in-carico">In carico</span>}
         {azione && <span className="badge-azione">{azione}</span>}
       </div>
       {nota.rif_commessa && <strong className="card-commessa"># {nota.rif_commessa}</strong>}

@@ -260,7 +260,7 @@ export default function Archivio({ io, liste, versione, onCambiata, onMessaggio 
                     <td>{nomeOperatore(liste, n.autore_id)}</td>
                     <td>{nomeOperatore(liste, n.destinatario_id)}</td>
                     <td>{nomeAzione(liste, n.azione_id) && <span className="badge-azione">{nomeAzione(liste, n.azione_id)}</span>}</td>
-                    <td><span className={`stato ${n.chiusa ? 'stato-chiusa' : 'stato-aperta'}`}>{n.chiusa ? 'Chiusa' : 'Aperta'}</span></td>
+                    <td><span className={`stato ${n.chiusa ? 'stato-chiusa' : 'stato-aperta'}`}>{n.chiusa ? 'Chiusa' : 'Aperta'}</span>{n.presa_in_carico && !n.chiusa && <> <span className="stato stato-in-carico">In carico</span></>}</td>
                     <td className="cella-testo">{n.testo}</td>
                     <td className="centrata">{contaCommenti(n) || ''}</td>
                     <td className="cella-foto">
@@ -374,6 +374,7 @@ function PannelloNota({
         {errore && <p className="errore riquadro">{errore}</p>}
         <dl className="scheda dettaglio">
           {riga('Data', dataBreve(nota.data))}
+          {riga('Presa in carico', nota.presa_in_carico ? `Sì${nota.presa_in_carico_at ? ' il ' + dataOra(nota.presa_in_carico_at) : ''}${nota.presa_in_carico_da ? ' da ' + nomeOperatore(liste, nota.presa_in_carico_da) : ''}` : 'No')}
           {riga('Stato', nota.chiusa ? `Chiusa${nota.chiusa_at ? ' il ' + dataOra(nota.chiusa_at) : ''}${nota.chiusa_da ? ' da ' + nomeOperatore(liste, nota.chiusa_da) : ''}` : 'Aperta')}
           {riga('Commessa', nota.rif_commessa && <strong>{nota.rif_commessa}</strong>)}
           {riga('Bancale', nota.rif_bancale)}

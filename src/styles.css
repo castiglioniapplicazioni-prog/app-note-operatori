@@ -814,3 +814,9 @@ textarea { font: inherit; }
 .interruttore input:checked + .interruttore-binario { background: var(--primario); }
 .interruttore input:checked + .interruttore-binario::after { transform: translateX(26px); }
 .interruttore input:focus-visible + .interruttore-binario { outline: 2px solid var(--primario); outline-offset: 2px; }
+
+/* ---------- Presa in carico ---------- */
+.stato-in-carico { background: #e3f2fd; color: #1565c0; }
+.stati-nota { display: inline-flex; gap: 6px; }
+.interruttore.spento { cursor: default; }
+.interruttore.spento .interruttore-binario { opacity: 0.45; }

@@ -194,6 +194,30 @@ verifica(x.r?.affectedRows === 1, 'admin elimina operatore mai entrato')
 x = await come('admin', `delete from operatori where id = $1`, [O.op2])
 verifica(!!x.e, 'operatore con note non eliminabile')
 
+// --- presa in carico (solo il destinatario)
+x = await come('op1', `insert into note (autore_id, destinatario_id, testo, presa_in_carico)
+  values ($1, $2, 'per Annalisa', true) returning id, presa_in_carico`, [O.op1, O.op2])
+const notaPer = x.r?.rows[0]
+verifica(notaPer && notaPer.presa_in_carico === false, 'nota nuova nasce non presa in carico (valore del client ignorato)')
+x = await come('op1', `update note set presa_in_carico = true where id = $1`, [notaPer.id])
+verifica(x.e?.includes('Solo il destinatario'), 'autore (non destinatario) NON prende in carico')
+x = await come('admin', `update note set presa_in_carico = true where id = $1`, [notaPer.id])
+verifica(x.e?.includes('Solo il destinatario'), 'admin (non destinatario) NON prende in carico')
+x = await come('op2', `update note set presa_in_carico = true, presa_in_carico_da = $2 where id = $1
+  returning presa_in_carico, presa_in_carico_at, presa_in_carico_da`, [notaPer.id, O.op1])
+verifica(x.r?.rows[0]?.presa_in_carico === true && x.r.rows[0].presa_in_carico_at && x.r.rows[0].presa_in_carico_da === O.op2,
+  'destinatario prende in carico (data e "da" automatici)')
+x = await come('op2', `update note set azione_id = $2 where id = $1 returning presa_in_carico, presa_in_carico_da`, [notaPer.id, azione])
+verifica(x.r?.rows[0]?.presa_in_carico === true && x.r.rows[0].presa_in_carico_da === O.op2, 'altre modifiche non toccano la presa in carico')
+x = await come('op2', `update note set presa_in_carico = false where id = $1 returning presa_in_carico_at`, [notaPer.id])
+verifica(x.r?.rows[0] && x.r.rows[0].presa_in_carico_at === null, 'destinatario toglie la presa in carico')
+await come('op2', `update note set presa_in_carico = true where id = $1`, [notaPer.id])
+x = await come('op1', `update note set destinatario_id = $2 where id = $1 returning presa_in_carico, presa_in_carico_da`, [notaPer.id, O.admin])
+verifica(x.r?.rows[0]?.presa_in_carico === false && x.r.rows[0].presa_in_carico_da === null, 'cambio destinatario azzera la presa in carico')
+x = await come('op1', `insert into note (autore_id, testo) values ($1, 'senza destinatario') returning id`, [O.op1])
+x = await come('op2', `update note set presa_in_carico = true where id = $1`, [x.r.rows[0].id])
+verifica(x.e?.includes('Solo il destinatario'), 'nota senza destinatario: nessuno la prende in carico')
+
 // --- operatore disattivato
 x = await come('admin', `update operatori set attivo = false where id = $1`, [O.op3])
 verifica(x.r?.affectedRows === 1, 'admin disattiva un operatore')

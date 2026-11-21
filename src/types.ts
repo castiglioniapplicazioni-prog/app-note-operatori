@@ -50,6 +50,9 @@ export interface Nota {
   chiusa: boolean
   chiusa_at: string | null
   chiusa_da: string | null
+  presa_in_carico: boolean
+  presa_in_carico_at: string | null
+  presa_in_carico_da: string | null
   created_at: string
   created_by: string | null
   updated_at: string

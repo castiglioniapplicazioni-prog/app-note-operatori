@@ -24,7 +24,7 @@ export async function scaricaCsv(note: Nota[], liste: Liste) {
   ])
   const perNota = raggruppa(commenti)
   const intestazione = [
-    'Data', 'N° nota', 'Commessa', 'Bancale', 'Operatore', 'Destinatario', 'Azione', 'Stato',
+    'Data', 'N° nota', 'Commessa', 'Bancale', 'Operatore', 'Destinatario', 'Presa in carico', 'Azione', 'Stato',
     'Chiusa il', 'Chiusa da', 'Testo', 'N° commenti', 'Commenti', 'Foto', 'Vocali',
   ]
   const righe = note.map((n) => {
@@ -36,6 +36,7 @@ export async function scaricaCsv(note: Nota[], liste: Liste) {
       n.rif_bancale,
       nomeOperatore(liste, n.autore_id),
       nomeOperatore(liste, n.destinatario_id),
+      n.presa_in_carico ? `Sì${n.presa_in_carico_at ? ' ' + dataOra(n.presa_in_carico_at) : ''}` : '',
       nomeAzione(liste, n.azione_id),
       n.chiusa ? 'Chiusa' : 'Aperta',
       n.chiusa_at ? dataOra(n.chiusa_at) : '',
@@ -124,6 +125,7 @@ export async function stampaNota(finestra: Window, nota: Nota, liste: Liste, com
       ${riga('Bancale', nota.rif_bancale)}
       ${riga('Operatore', nomeOperatore(liste, nota.autore_id))}
       ${riga('Destinatario', nomeOperatore(liste, nota.destinatario_id))}
+      ${nota.destinatario_id ? riga('Presa in carico', nota.presa_in_carico ? `Sì${nota.presa_in_carico_at ? ' il ' + dataOra(nota.presa_in_carico_at) : ''}${nota.presa_in_carico_da ? ' da ' + nomeOperatore(liste, nota.presa_in_carico_da) : ''}` : 'No') : ''}
       ${riga('Azione', nomeAzione(liste, nota.azione_id))}
     </table>
     ${nota.testo ? `<div class="testo">${esc(nota.testo)}</div>` : ''}

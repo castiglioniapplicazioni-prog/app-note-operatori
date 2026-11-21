@@ -138,12 +138,21 @@ export default function DettaglioNota({ notaId, io, liste, onChiudi, onCambiata,
         <div className="scheda intestazione-nota">
           <div className="riga-intestazione">
             <span>{dataBreve(n.data)}</span>
-            <span className={`stato ${n.chiusa ? 'stato-chiusa' : 'stato-aperta'}`}>{n.chiusa ? 'Chiusa' : 'Aperta'}</span>
+            <span className="stati-nota">
+              {n.presa_in_carico && !n.chiusa && <span className="stato stato-in-carico">In carico</span>}
+              <span className={`stato ${n.chiusa ? 'stato-chiusa' : 'stato-aperta'}`}>{n.chiusa ? 'Chiusa' : 'Aperta'}</span>
+            </span>
           </div>
           <p className="persone-nota">
             <Icona nome="persona" dimensione={18} /> {nomeOperatore(liste, n.autore_id)}
             {destinatario && <> → {destinatario}</>}
           </p>
+          {n.presa_in_carico && n.presa_in_carico_at && (
+            <p className="nota-campo">
+              Presa in carico il {dataOra(n.presa_in_carico_at)}
+              {n.presa_in_carico_da && ` da ${nomeOperatore(liste, n.presa_in_carico_da)}`}
+            </p>
+          )}
           {n.chiusa && n.chiusa_at && (
             <p className="nota-campo">
               Chiusa il {dataOra(n.chiusa_at)}
@@ -216,9 +225,11 @@ export default function DettaglioNota({ notaId, io, liste, onChiudi, onCambiata,
         />
 
         <StatoNota
-          key={String(n.chiusa)}
-          chiusa={n.chiusa}
-          onSalva={(chiusa) => esegui(() => aggiornaNota(n.id, { chiusa }), chiusa ? 'Nota chiusa' : 'Nota riaperta')}
+          key={`${n.chiusa}-${n.presa_in_carico}-${n.destinatario_id}`}
+          nota={n}
+          destinatario={destinatario}
+          sonoDestinatario={Boolean(n.destinatario_id) && n.destinatario_id === io.id}
+          onSalva={(campi, messaggio) => esegui(() => aggiornaNota(n.id, campi), messaggio)}
         />
         {!modificabile && (
           <p className="nota-campo centrata">
@@ -395,31 +406,75 @@ function PulsanteIndietro({ onClick }: { onClick: () => void }) {
   )
 }
 
-// Cursore "Nota chiusa" + pulsante Salva: la modifica vale solo dopo "Salva"
-function StatoNota({ chiusa, onSalva }: { chiusa: boolean; onSalva: (chiusa: boolean) => Promise<void> }) {
-  const [scelta, setScelta] = useState(chiusa)
+// Cursori "Presa in carico" e "Nota chiusa" + pulsante Salva: le modifiche valgono solo dopo "Salva".
+// "Presa in carico" lo può spostare solo il destinatario (lo controlla anche il database).
+function StatoNota({ nota, destinatario, sonoDestinatario, onSalva }: {
+  nota: Nota
+  destinatario: string
+  sonoDestinatario: boolean
+  onSalva: (campi: { chiusa?: boolean; presa_in_carico?: boolean }, messaggio: string) => Promise<void>
+}) {
+  const [chiusa, setChiusa] = useState(nota.chiusa)
+  const [inCarico, setInCarico] = useState(nota.presa_in_carico)
   const [salvataggio, setSalvataggio] = useState(false)
-  const cambiata = scelta !== chiusa
+  const campi: { chiusa?: boolean; presa_in_carico?: boolean } = {}
+  if (chiusa !== nota.chiusa) campi.chiusa = chiusa
+  if (inCarico !== nota.presa_in_carico) campi.presa_in_carico = inCarico
 
   async function salva() {
+    const messaggio =
+      campi.chiusa !== undefined
+        ? chiusa ? 'Nota chiusa' : 'Nota riaperta'
+        : inCarico ? 'Nota presa in carico' : 'Presa in carico tolta'
     setSalvataggio(true)
-    await onSalva(scelta)
+    await onSalva(campi, messaggio)
     setSalvataggio(false)
   }
 
   return (
     <div className="scheda stato-nota">
-      <label className="interruttore">
-        <span>
-          <strong>Nota chiusa</strong>
-          <small>{scelta ? 'Il problema è risolto' : 'Sposta a destra quando il problema è risolto'}</small>
-        </span>
-        <input type="checkbox" role="switch" checked={scelta} onChange={(e) => setScelta(e.target.checked)} disabled={salvataggio} />
-        <span className="interruttore-binario" aria-hidden="true" />
-      </label>
-      <button className="pulsante primario grande larga" onClick={salva} disabled={!cambiata || salvataggio}>
+      {nota.destinatario_id && (
+        <Interruttore
+          titolo="Presa in carico"
+          spiegazione={
+            sonoDestinatario
+              ? inCarico ? 'Te ne stai occupando tu' : 'Sposta a destra se te ne occupi tu'
+              : `Solo ${destinatario || 'il destinatario'} può prenderla in carico`
+          }
+          acceso={inCarico}
+          onCambia={setInCarico}
+          disattivato={salvataggio || !sonoDestinatario}
+        />
+      )}
+      <Interruttore
+        titolo="Nota chiusa"
+        spiegazione={chiusa ? 'Il problema è risolto' : 'Sposta a destra quando il problema è risolto'}
+        acceso={chiusa}
+        onCambia={setChiusa}
+        disattivato={salvataggio}
+      />
+      <button className="pulsante primario grande larga" onClick={salva} disabled={!Object.keys(campi).length || salvataggio}>
         {salvataggio ? 'Salvataggio…' : 'Salva'}
       </button>
     </div>
+  )
+}
+
+function Interruttore({ titolo, spiegazione, acceso, onCambia, disattivato }: {
+  titolo: string
+  spiegazione: string
+  acceso: boolean
+  onCambia: (acceso: boolean) => void
+  disattivato: boolean
+}) {
+  return (
+    <label className={`interruttore ${disattivato ? 'spento' : ''}`}>
+      <span>
+        <strong>{titolo}</strong>
+        <small>{spiegazione}</small>
+      </span>
+      <input type="checkbox" role="switch" checked={acceso} onChange={(e) => onCambia(e.target.checked)} disabled={disattivato} />
+      <span className="interruttore-binario" aria-hidden="true" />
+    </label>
   )
 }

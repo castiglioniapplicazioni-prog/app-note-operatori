@@ -207,7 +207,7 @@ export async function creaNota(dati: DatiNota): Promise<Nota> {
 }
 
 // Modifica parziale (es. solo azione, solo chiusa); le regole sono nel database
-export async function aggiornaNota(id: string, campi: Partial<DatiNota & { chiusa: boolean }>) {
+export async function aggiornaNota(id: string, campi: Partial<DatiNota & { chiusa: boolean; presa_in_carico: boolean }>) {
   const { data, error } = await supabase.from('note').update(campi).eq('id', id).select('id')
   if (error) throw new Error(messaggioErrore(error))
   if (!data.length) throw new Error('Non puoi modificare questa nota.')
