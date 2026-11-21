@@ -215,14 +215,11 @@ export default function DettaglioNota({ notaId, io, liste, onChiudi, onCambiata,
           onInviato={() => esegui(async () => {}, 'Commento inviato')}
         />
 
-        <button
-          className={`pulsante grande larga ${n.chiusa ? '' : 'primario'}`}
-          onClick={() =>
-            esegui(() => aggiornaNota(n.id, { chiusa: !n.chiusa }), n.chiusa ? 'Nota riaperta' : 'Nota chiusa')
-          }
-        >
-          {n.chiusa ? 'Riapri nota' : 'Chiudi nota'}
-        </button>
+        <StatoNota
+          key={String(n.chiusa)}
+          chiusa={n.chiusa}
+          onSalva={(chiusa) => esegui(() => aggiornaNota(n.id, { chiusa }), chiusa ? 'Nota chiusa' : 'Nota riaperta')}
+        />
         {!modificabile && (
           <p className="nota-campo centrata">
             Solo l'autore della nota o un admin può modificarne riferimenti e testo, eliminarla o eliminare foto e vocali.
@@ -395,5 +392,34 @@ function PulsanteIndietro({ onClick }: { onClick: () => void }) {
     <button className="pulsante-indietro" onClick={onClick}>
       <Icona nome="indietro" dimensione={20} /> Indietro
     </button>
+  )
+}
+
+// Cursore "Nota chiusa" + pulsante Salva: la modifica vale solo dopo "Salva"
+function StatoNota({ chiusa, onSalva }: { chiusa: boolean; onSalva: (chiusa: boolean) => Promise<void> }) {
+  const [scelta, setScelta] = useState(chiusa)
+  const [salvataggio, setSalvataggio] = useState(false)
+  const cambiata = scelta !== chiusa
+
+  async function salva() {
+    setSalvataggio(true)
+    await onSalva(scelta)
+    setSalvataggio(false)
+  }
+
+  return (
+    <div className="scheda stato-nota">
+      <label className="interruttore">
+        <span>
+          <strong>Nota chiusa</strong>
+          <small>{scelta ? 'Il problema è risolto' : 'Sposta a destra quando il problema è risolto'}</small>
+        </span>
+        <input type="checkbox" role="switch" checked={scelta} onChange={(e) => setScelta(e.target.checked)} disabled={salvataggio} />
+        <span className="interruttore-binario" aria-hidden="true" />
+      </label>
+      <button className="pulsante primario grande larga" onClick={salva} disabled={!cambiata || salvataggio}>
+        {salvataggio ? 'Salvataggio…' : 'Salva'}
+      </button>
+    </div>
   )
 }
