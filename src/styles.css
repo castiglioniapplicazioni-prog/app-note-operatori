@@ -820,3 +820,6 @@ textarea { font: inherit; }
 .stati-nota { display: inline-flex; gap: 6px; }
 .interruttore.spento { cursor: default; }
 .interruttore.spento .interruttore-binario { opacity: 0.45; }
+
+/* ---------- Lettura dal vivo: pulsante "Leggi codice" ---------- */
+.scanner-leggi { position: relative; width: min(360px, 100%); margin-bottom: 8px; }

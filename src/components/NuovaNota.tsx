@@ -119,8 +119,8 @@ export default function NuovaNota({ io, liste, onChiudi, onSalvata }: Props) {
           Destinatario
           <SceltaOperatore operatori={attivi} valore={destinatario} onCambia={setDestinatario} vuota="Nessun destinatario" vuotaSelezionabile />
         </label>
-        <CampoCodice etichetta="Rif Commessa" valore={commessa} onCambia={setCommessa} />
-        <CampoCodice etichetta="Rif Bancale" valore={bancale} onCambia={setBancale} />
+        <CampoCodice etichetta="Rif Commessa" valore={commessa} onCambia={setCommessa} togliInizio={3} togliFine={3} />
+        <CampoCodice etichetta="Rif Bancale" valore={bancale} onCambia={setBancale} togliInizio={3} />
         <label>
           Azione
           <select value={azione} onChange={(e) => setAzione(e.target.value)}>

@@ -29,7 +29,17 @@ function disegna(foto: ImageBitmap, latoMassimo: number, rotazione: number): HTM
   return canvas
 }
 
-type Rilevatore = { detect(s: ImageBitmap | HTMLCanvasElement): Promise<{ rawValue: string }[]> }
+type CodiceTrovato = { rawValue: string; boundingBox?: DOMRectReadOnly }
+type Rilevatore = { detect(s: ImageBitmap | HTMLCanvasElement): Promise<CodiceTrovato[]> }
+
+// Se nella foto ci sono più codici si prende quello più vicino al centro (quello inquadrato)
+function piuCentrale(codici: CodiceTrovato[], w: number, h: number): CodiceTrovato | undefined {
+  const distanza = (c: CodiceTrovato) => {
+    const b = c.boundingBox
+    return b ? Math.hypot(b.x + b.width / 2 - w / 2, b.y + b.height / 2 - h / 2) : Infinity
+  }
+  return [...codici].sort((a, b) => distanza(a) - distanza(b))[0]
+}
 
 async function creaNativo(): Promise<Rilevatore | null> {
   const R = (window as unknown as {
@@ -55,8 +65,8 @@ export async function leggiCodiceDaFoto(file: Blob): Promise<string | null> {
     const nativo = await creaNativo()
     if (nativo) {
       try {
-        const codici = await nativo.detect(foto)
-        if (codici[0]?.rawValue) return codici[0].rawValue
+        const codice = piuCentrale(await nativo.detect(foto), foto.width, foto.height)
+        if (codice?.rawValue) return codice.rawValue
       } catch {
         // si passa a zxing
       }

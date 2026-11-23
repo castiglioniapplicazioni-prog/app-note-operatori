@@ -8,17 +8,26 @@ interface Props {
   etichetta: string
   valore: string
   onCambia: (v: string) => void
+  // caratteri da togliere dal codice letto con lo scanner (non da quello scritto a mano)
+  togliInizio?: number
+  togliFine?: number
+}
+
+// Toglie i caratteri in eccesso dal codice letto; se il codice è troppo corto lo lascia com'è
+export function tagliaCodice(testo: string, inizio = 0, fine = 0): string {
+  if (testo.length <= inizio + fine) return testo
+  return testo.slice(inizio, testo.length - fine)
 }
 
 // Campo testo + pulsante verde di scansione (SPEC 5.5). Il campo resta modificabile a mano.
-export default function CampoCodice({ etichetta, valore, onCambia }: Props) {
+export default function CampoCodice({ etichetta, valore, onCambia, togliInizio = 0, togliFine = 0 }: Props) {
   const [pannello, setPannello] = useState(false)
   const [dalVivo, setDalVivo] = useState(false)
   const [lettura, setLettura] = useState<string | null>(null) // messaggio durante/dopo la lettura da foto
   const inputFoto = useRef<HTMLInputElement>(null)
 
   function letto(testo: string) {
-    import('../codici').then(({ pulisciCodice }) => onCambia(pulisciCodice(testo)))
+    import('../codici').then(({ pulisciCodice }) => onCambia(tagliaCodice(pulisciCodice(testo), togliInizio, togliFine)))
     setDalVivo(false)
     setPannello(false)
     setLettura(null)

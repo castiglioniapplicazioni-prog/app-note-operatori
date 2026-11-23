@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser'
+import { BrowserMultiFormatReader } from '@zxing/browser'
 import { FORMATI_NATIVI, suggerimentiZxing } from '../codici'
 import { apriFotocamera, fotocameraDisponibile, messaggioFotocamera } from '../fotocamera'
 
-// Lettura dal vivo con la fotocamera posteriore (SPEC 5.5, modalità 2):
-// fotocamera principale (non ultra-grandangolo), zoom iniziale 2x se supportato,
-// pulsanti 1x/2x/3x/4x, torcia se supportata, mirino con linea rossa.
+// Lettura dal vivo con la fotocamera posteriore (SPEC 5.5, modalità 2).
+// Non legge da sola: l'operatore mira con calma e preme "Leggi codice".
+// Si legge SOLO la parte di immagine dentro il riquadro bianco, così un altro codice
+// visibile ai bordi della fotocamera non viene preso per sbaglio.
+// Fotocamera principale, zoom iniziale 2x se supportato, pulsanti 1x-4x, torcia.
 // Caricato solo all'uso (zxing è grande).
 
 interface Props {
@@ -14,6 +16,7 @@ interface Props {
 }
 
 const LIVELLI_ZOOM = [1, 2, 3, 4]
+const TENTATIVI = 8 // fotogrammi provati a ogni pressione del pulsante (circa 1 secondo)
 
 type Capacita = MediaTrackCapabilities & {
   focusMode?: string[]
@@ -21,7 +24,7 @@ type Capacita = MediaTrackCapabilities & {
   torch?: boolean
 }
 interface RilevatoreNativo {
-  detect(sorgente: HTMLVideoElement): Promise<{ rawValue: string }[]>
+  detect(sorgente: HTMLCanvasElement): Promise<{ rawValue: string }[]>
 }
 interface CostruttoreRilevatore {
   new (opzioni: { formats: string[] }): RilevatoreNativo
@@ -41,48 +44,63 @@ async function creaRilevatoreNativo(): Promise<RilevatoreNativo | null> {
   }
 }
 
+const attendi = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// Copia in un canvas solo la parte del video che sta dentro il riquadro sullo schermo.
+// Il video riempie lo schermo "ritagliato" (object-fit: cover): si ricalcolano le coordinate.
+function ritagliaRiquadro(video: HTMLVideoElement, riquadro: HTMLElement): HTMLCanvasElement | null {
+  const vw = video.videoWidth
+  const vh = video.videoHeight
+  if (!vw || !vh) return null
+  const sv = video.getBoundingClientRect()
+  const sr = riquadro.getBoundingClientRect()
+  const scala = Math.max(sv.width / vw, sv.height / vh)
+  const spostX = (sv.width - vw * scala) / 2
+  const spostY = (sv.height - vh * scala) / 2
+  // un piccolo margine attorno al riquadro, per non tagliare le zone bianche ai lati del codice
+  const margine = 12
+  let x = (sr.left - sv.left - spostX - margine) / scala
+  let y = (sr.top - sv.top - spostY - margine) / scala
+  let w = (sr.width + margine * 2) / scala
+  let h = (sr.height + margine * 2) / scala
+  x = Math.max(0, x)
+  y = Math.max(0, y)
+  w = Math.min(vw - x, w)
+  h = Math.min(vh - y, h)
+  // zxing legge meglio se il codice non è troppo piccolo: si ingrandisce fino a 1000px di larghezza
+  const ingrandimento = Math.max(1, Math.min(3, 1000 / w))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(w * ingrandimento)
+  canvas.height = Math.round(h * ingrandimento)
+  canvas.getContext('2d')!.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height)
+  return canvas
+}
+
 export default function ScannerDalVivo({ onLetto, onChiudi }: Props) {
-  const contenitore = useRef<HTMLDivElement>(null)
+  const video = useRef<HTMLVideoElement>(null)
+  const riquadro = useRef<HTMLDivElement>(null)
   const traccia = useRef<MediaStreamTrack | null>(null)
+  const nativo = useRef<RilevatoreNativo | null>(null)
+  const zxing = useRef<BrowserMultiFormatReader | null>(null)
+  const [pronta, setPronta] = useState(false)
+  const [lettura, setLettura] = useState(false)
+  const [messaggio, setMessaggio] = useState<string | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
   const [zoomMassimo, setZoomMassimo] = useState(1)
   const [zoom, setZoom] = useState(1)
   const [torcia, setTorcia] = useState<boolean | null>(null) // null = non supportata
-  // il componente padre si ridisegna spesso: la fotocamera non deve ripartire ogni volta
-  const avvisaLetto = useRef(onLetto)
-  avvisaLetto.current = onLetto
 
   useEffect(() => {
     if (!fotocameraDisponibile()) {
       setErrore("La fotocamera dal vivo funziona solo se l'app è aperta con un indirizzo https://")
       return
     }
-    const video = document.createElement('video')
-    video.muted = true
-    video.autoplay = true
-    video.playsInline = true
-    video.setAttribute('playsinline', '') // richiesto da Safari su iPhone
-    contenitore.current!.appendChild(video)
-
     let flusso: MediaStream | undefined
-    let controlliZxing: IScannerControls | undefined
-    let prossimo: ReturnType<typeof setTimeout> | undefined
     let chiuso = false
-
-    function ferma() {
-      chiuso = true
-      clearTimeout(prossimo)
-      controlliZxing?.stop()
+    const ferma = () => {
       flusso?.getTracks().forEach((t) => t.stop())
       flusso = undefined
       traccia.current = null
-    }
-
-    function letto(testo: string) {
-      if (chiuso) return
-      ferma()
-      navigator.vibrate?.(80)
-      avvisaLetto.current(testo)
     }
 
     async function avvia() {
@@ -93,9 +111,9 @@ export default function ScannerDalVivo({ onLetto, onChiudi }: Props) {
         if (!chiuso) setErrore(messaggioFotocamera(err, ', oppure usa "Scatta una foto del codice"'))
         return
       }
-
-      video.srcObject = flusso
-      await video.play().catch(() => {})
+      const v = video.current!
+      v.srcObject = flusso
+      await v.play().catch(() => {})
       const t = flusso.getVideoTracks()[0]
       traccia.current = t
       const capacita = (t.getCapabilities?.() ?? {}) as Capacita
@@ -110,38 +128,56 @@ export default function ScannerDalVivo({ onLetto, onChiudi }: Props) {
           .catch(() => {})
       }
       if (capacita.torch) setTorcia(false)
-      if (chiuso) return
-
-      const nativo = await creaRilevatoreNativo()
-      if (nativo) {
-        const tentativo = async () => {
-          if (chiuso) return
-          try {
-            const codici = await nativo.detect(video)
-            if (codici.length) return letto(codici[0].rawValue)
-          } catch {
-            // fotogramma non pronto
-          }
-          prossimo = setTimeout(tentativo, 100)
-        }
-        tentativo()
-        return
-      }
-      controlliZxing = await new BrowserMultiFormatReader(suggerimentiZxing()).decodeFromVideoElement(
-        video,
-        (risultato) => risultato && letto(risultato.getText()),
-      )
-      if (chiuso) controlliZxing.stop()
+      nativo.current = await creaRilevatoreNativo()
+      if (!nativo.current) zxing.current = new BrowserMultiFormatReader(suggerimentiZxing())
+      if (!chiuso) setPronta(true)
     }
 
     // piccolo ritardo: in sviluppo React monta due volte il componente
     const timer = setTimeout(avvia, 50)
     return () => {
+      chiuso = true
       clearTimeout(timer)
       ferma()
-      video.remove()
     }
   }, [])
+
+  async function decodifica(canvas: HTMLCanvasElement): Promise<string | null> {
+    if (nativo.current) {
+      try {
+        const codici = await nativo.current.detect(canvas)
+        if (codici.length) return codici[0].rawValue
+      } catch {
+        // si prova con zxing
+      }
+      zxing.current ??= new BrowserMultiFormatReader(suggerimentiZxing())
+    }
+    try {
+      return zxing.current!.decodeFromCanvas(canvas).getText()
+    } catch {
+      return null
+    }
+  }
+
+  async function leggi() {
+    if (!video.current || !riquadro.current || lettura) return
+    setLettura(true)
+    setMessaggio(null)
+    for (let i = 0; i < TENTATIVI; i++) {
+      const canvas = ritagliaRiquadro(video.current, riquadro.current)
+      const testo = canvas ? await decodifica(canvas) : null
+      if (canvas) canvas.width = canvas.height = 0
+      if (testo) {
+        navigator.vibrate?.(80)
+        traccia.current?.stop()
+        onLetto(testo)
+        return
+      }
+      await attendi(120)
+    }
+    setLettura(false)
+    setMessaggio('Nessun codice nel riquadro. Avvicinati o allontanati un po’, poi riprova.')
+  }
 
   function impostaZoom(livello: number) {
     traccia.current
@@ -160,11 +196,15 @@ export default function ScannerDalVivo({ onLetto, onChiudi }: Props) {
 
   return (
     <div className="scanner">
-      <div ref={contenitore} className="scanner-video" />
-      <div className="scanner-mirino">
+      <div className="scanner-video">
+        <video ref={video} muted autoPlay playsInline />
+      </div>
+      <div ref={riquadro} className="scanner-mirino">
         <div className="scanner-linea" />
       </div>
-      <p className="scanner-testo">{errore ?? 'Inquadra il codice nel riquadro'}</p>
+      <p className="scanner-testo">
+        {errore ?? messaggio ?? (lettura ? 'Lettura…' : pronta ? 'Metti il codice dentro il riquadro e premi "Leggi codice"' : 'Avvio fotocamera…')}
+      </p>
       <div className="scanner-comandi">
         {zoomMassimo >= 2 &&
           LIVELLI_ZOOM.filter((z) => z <= zoomMassimo).map((z) => (
@@ -178,6 +218,11 @@ export default function ScannerDalVivo({ onLetto, onChiudi }: Props) {
           </button>
         )}
       </div>
+      {pronta && (
+        <button className="pulsante primario grande scanner-leggi" onClick={leggi} disabled={lettura}>
+          {lettura ? 'Lettura…' : 'Leggi codice'}
+        </button>
+      )}
       <button className="pulsante grande scanner-annulla" onClick={onChiudi}>
         Annulla
       </button>

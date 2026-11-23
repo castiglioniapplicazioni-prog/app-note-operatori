@@ -378,8 +378,8 @@ function ModificaNota({
         <h2>Modifica nota</h2>
       </div>
       <form className="foglio-corpo modulo" onSubmit={salva}>
-        <CampoCodice etichetta="Rif Commessa" valore={commessa} onCambia={setCommessa} />
-        <CampoCodice etichetta="Rif Bancale" valore={bancale} onCambia={setBancale} />
+        <CampoCodice etichetta="Rif Commessa" valore={commessa} onCambia={setCommessa} togliInizio={3} togliFine={3} />
+        <CampoCodice etichetta="Rif Bancale" valore={bancale} onCambia={setBancale} togliInizio={3} />
         <label>
           Destinatario
           <SceltaOperatore operatori={operatori} valore={destinatario} onCambia={setDestinatario} vuota="Nessun destinatario" vuotaSelezionabile />
